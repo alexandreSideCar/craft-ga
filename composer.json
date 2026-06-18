@@ -19,6 +19,7 @@
     "handle": "craft-analytics",
     "name": "Analytics",
     "class": "sidecar\\craftanalytics\\Plugin",
-    "developer": "Side-Car"
+    "developer": "Side-Car",
+    "craftcms-claude-skills": "1.2.0"
   }
 }
