@@ -17,6 +17,7 @@ use Google\Client as GoogleClient;
 use Google\Service\SearchConsole;
 use Google\Service\SearchConsole\SearchAnalyticsQueryRequest;
 use sidecar\craftanalytics\Plugin;
+use yii\caching\TagDependency;
 
 class AnalyticsService extends Component
 {
@@ -25,6 +26,7 @@ class AnalyticsService extends Component
     private const SCOPE_ANALYTICS = 'https://www.googleapis.com/auth/analytics.readonly';
     private const SCOPE_SEARCH_CONSOLE = 'https://www.googleapis.com/auth/webmasters.readonly';
     private const CACHE_PREFIX = 'craft-analytics:';
+    private const CACHE_TAG = 'craft-analytics';
 
     public function isConfigured(): bool
     {
@@ -36,7 +38,7 @@ class AnalyticsService extends Component
         return !empty($propertyId) && !empty($clientId) && !empty($clientSecret) && $settings->isConnected();
     }
 
-    public function getAuthUrl(): string
+    public function getAuthUrl(string $state): string
     {
         $settings = Plugin::$plugin->getSettings();
         $clientId = App::parseEnv($settings->oauthClientId);
@@ -49,6 +51,7 @@ class AnalyticsService extends Component
             'scope' => implode(' ', $this->_getScopes()),
             'access_type' => 'offline',
             'prompt' => 'consent',
+            'state' => $state,
         ];
 
         return 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query($params);
@@ -113,7 +116,7 @@ class AnalyticsService extends Component
 
         return Craft::$app->getCache()->getOrSet(self::CACHE_PREFIX . 'summary', function () {
             return $this->_fetchSummaryStats();
-        }, $duration);
+        }, $duration, $this->_cacheDependency());
     }
 
     public function getTrafficSources(): array
@@ -122,7 +125,7 @@ class AnalyticsService extends Component
 
         return Craft::$app->getCache()->getOrSet(self::CACHE_PREFIX . 'traffic-sources', function () {
             return $this->_fetchTrafficSources();
-        }, $duration);
+        }, $duration, $this->_cacheDependency());
     }
 
     public function getTopPages(int $limit = 10): array
@@ -131,7 +134,7 @@ class AnalyticsService extends Component
 
         return Craft::$app->getCache()->getOrSet(self::CACHE_PREFIX . 'top-pages', function () use ($limit) {
             return $this->_fetchTopPages($limit);
-        }, $duration);
+        }, $duration, $this->_cacheDependency());
     }
 
     public function getDailyStats(int $days = 30): array
@@ -140,7 +143,7 @@ class AnalyticsService extends Component
 
         return Craft::$app->getCache()->getOrSet(self::CACHE_PREFIX . "daily-{$days}", function () use ($days) {
             return $this->_fetchDailyStats($days);
-        }, $duration);
+        }, $duration, $this->_cacheDependency());
     }
 
     public function getKeyEvents(): array
@@ -149,7 +152,7 @@ class AnalyticsService extends Component
 
         return Craft::$app->getCache()->getOrSet(self::CACHE_PREFIX . 'key-events', function () {
             return $this->_fetchKeyEvents();
-        }, $duration);
+        }, $duration, $this->_cacheDependency());
     }
 
     public function getEngagementStats(): array
@@ -158,7 +161,7 @@ class AnalyticsService extends Component
 
         return Craft::$app->getCache()->getOrSet(self::CACHE_PREFIX . 'engagement', function () {
             return $this->_fetchEngagementStats();
-        }, $duration);
+        }, $duration, $this->_cacheDependency());
     }
 
     public function getSearchConsoleStats(): array
@@ -167,15 +170,21 @@ class AnalyticsService extends Component
 
         return Craft::$app->getCache()->getOrSet(self::CACHE_PREFIX . 'search-console', function () {
             return $this->_fetchSearchConsoleStats();
-        }, $duration);
+        }, $duration, $this->_cacheDependency());
     }
 
     public function clearCache(): void
     {
-        $cache = Craft::$app->getCache();
-        foreach (['summary', 'traffic-sources', 'top-pages', 'daily-30', 'key-events', 'engagement', 'search-console'] as $key) {
-            $cache->delete(self::CACHE_PREFIX . $key);
-        }
+        TagDependency::invalidate(Craft::$app->getCache(), self::CACHE_TAG);
+    }
+
+    /**
+     * Returns the tag dependency applied to every cached report, so {@see clearCache()}
+     * can invalidate all variants (including `daily-{$days}` for any `$days`) in one call.
+     */
+    private function _cacheDependency(): TagDependency
+    {
+        return new TagDependency(['tags' => self::CACHE_TAG]);
     }
 
     private function _fetchSummaryStats(): array
@@ -233,8 +242,7 @@ class AnalyticsService extends Component
 
             return $result;
         } catch (\Throwable $e) {
-            Craft::error('Analytics: Failed to fetch summary stats: ' . $e->getMessage(), __METHOD__);
-            return ['error' => $e->getMessage()];
+            return $this->_error('Failed to fetch summary stats', $e);
         }
     }
 
@@ -249,62 +257,50 @@ class AnalyticsService extends Component
                 new Dimension(['name' => 'pageTitle']),
             ];
             $metrics = [new Metric(['name' => 'screenPageViews'])];
-            $orderBys = [
-                new OrderBy([
-                    'metric' => new MetricOrderBy(['metric_name' => 'screenPageViews']),
-                    'desc' => true,
-                ]),
-            ];
 
-            // Current period
-            $current = $client->runReport([
+            // Both periods in one request. With multiple date ranges GA4 appends a
+            // synthetic `dateRange` dimension (date_range_0 = current, date_range_1 = previous)
+            // as the last dimension on each row.
+            $response = $client->runReport([
                 'property' => $propertyId,
-                'dateRanges' => [new DateRange(['start_date' => '30daysAgo', 'end_date' => 'today'])],
+                'dateRanges' => $this->_comparisonDateRanges(),
                 'dimensions' => $dims,
                 'metrics' => $metrics,
-                'orderBys' => $orderBys,
+                'orderBys' => [
+                    new OrderBy([
+                        'metric' => new MetricOrderBy(['metric_name' => 'screenPageViews']),
+                        'desc' => true,
+                    ]),
+                ],
                 'limit' => $limit * 5,
             ]);
 
-            // Previous period
-            $previous = $client->runReport([
-                'property' => $propertyId,
-                'dateRanges' => [new DateRange(['start_date' => '60daysAgo', 'end_date' => '31daysAgo'])],
-                'dimensions' => $dims,
-                'metrics' => $metrics,
-                'orderBys' => $orderBys,
-                'limit' => $limit * 5,
-            ]);
-
-            // Aggregate current by path
             $byPath = [];
-            foreach ($current->getRows() as $row) {
-                $path = $row->getDimensionValues()[0]->getValue();
-                $title = $row->getDimensionValues()[1]->getValue();
+            foreach ($response->getRows() as $row) {
+                $dimValues = $row->getDimensionValues();
+                $path = $dimValues[0]->getValue();
+                $title = $dimValues[1]->getValue();
+                $isPrevious = $dimValues[2]->getValue() === 'date_range_1';
                 $views = (int) $row->getMetricValues()[0]->getValue();
 
                 if (!isset($byPath[$path])) {
-                    $byPath[$path] = ['title' => $title, 'path' => $path, 'views' => $views, 'prevViews' => 0, 'titleViews' => $views];
-                } else {
-                    $byPath[$path]['views'] += $views;
-                    if ($views > $byPath[$path]['titleViews']) {
-                        $byPath[$path]['title'] = $title;
-                        $byPath[$path]['titleViews'] = $views;
-                    }
+                    $byPath[$path] = ['title' => $title, 'path' => $path, 'views' => 0, 'prevViews' => 0, 'titleViews' => 0];
                 }
-            }
 
-            // Add previous period data
-            foreach ($previous->getRows() as $row) {
-                $path = $row->getDimensionValues()[0]->getValue();
-                $views = (int) $row->getMetricValues()[0]->getValue();
-
-                if (isset($byPath[$path])) {
+                if ($isPrevious) {
                     $byPath[$path]['prevViews'] += $views;
+                    continue;
+                }
+
+                $byPath[$path]['views'] += $views;
+                if ($views > $byPath[$path]['titleViews']) {
+                    $byPath[$path]['title'] = $title;
+                    $byPath[$path]['titleViews'] = $views;
                 }
             }
 
-            // Sort by current views and take top $limit
+            // Keep only pages with current-period traffic, then take the top $limit.
+            $byPath = array_filter($byPath, fn($p) => $p['views'] > 0);
             usort($byPath, fn($a, $b) => $b['views'] <=> $a['views']);
             $pages = array_slice($byPath, 0, $limit);
 
@@ -315,8 +311,7 @@ class AnalyticsService extends Component
                 'change' => $this->_percentChange($p['views'], $p['prevViews']),
             ], $pages);
         } catch (\Throwable $e) {
-            Craft::error('Analytics: Failed to fetch top pages: ' . $e->getMessage(), __METHOD__);
-            return ['error' => $e->getMessage()];
+            return $this->_error('Failed to fetch top pages', $e);
         }
     }
 
@@ -328,54 +323,48 @@ class AnalyticsService extends Component
 
             $dims = [new Dimension(['name' => 'sessionDefaultChannelGroup'])];
             $metrics = [new Metric(['name' => 'sessions'])];
-            $orderBys = [
-                new OrderBy([
-                    'metric' => new MetricOrderBy(['metric_name' => 'sessions']),
-                    'desc' => true,
-                ]),
-            ];
 
-            // Current period
-            $current = $client->runReport([
+            // Both periods in one request; the trailing `dateRange` dimension separates them.
+            $response = $client->runReport([
                 'property' => $propertyId,
-                'dateRanges' => [new DateRange(['start_date' => '30daysAgo', 'end_date' => 'today'])],
+                'dateRanges' => $this->_comparisonDateRanges(),
                 'dimensions' => $dims,
                 'metrics' => $metrics,
-                'orderBys' => $orderBys,
+                'orderBys' => [
+                    new OrderBy([
+                        'metric' => new MetricOrderBy(['metric_name' => 'sessions']),
+                        'desc' => true,
+                    ]),
+                ],
             ]);
 
-            // Previous period
-            $previous = $client->runReport([
-                'property' => $propertyId,
-                'dateRanges' => [new DateRange(['start_date' => '60daysAgo', 'end_date' => '31daysAgo'])],
-                'dimensions' => $dims,
-                'metrics' => $metrics,
-                'orderBys' => $orderBys,
-            ]);
-
-            // Build previous lookup
+            $current = [];
             $prevLookup = [];
-            foreach ($previous->getRows() as $row) {
-                $prevLookup[$row->getDimensionValues()[0]->getValue()] = (int) $row->getMetricValues()[0]->getValue();
+            foreach ($response->getRows() as $row) {
+                $dimValues = $row->getDimensionValues();
+                $source = $dimValues[0]->getValue();
+                $sessions = (int) $row->getMetricValues()[0]->getValue();
+
+                if ($dimValues[1]->getValue() === 'date_range_1') {
+                    $prevLookup[$source] = $sessions;
+                    continue;
+                }
+
+                $current[$source] = $sessions;
             }
 
             $sources = [];
-            foreach ($current->getRows() as $row) {
-                $source = $row->getDimensionValues()[0]->getValue();
-                $sessions = (int) $row->getMetricValues()[0]->getValue();
-                $prev = $prevLookup[$source] ?? 0;
-
+            foreach ($current as $source => $sessions) {
                 $sources[] = [
                     'source' => $source,
                     'sessions' => $sessions,
-                    'change' => $this->_percentChange($sessions, $prev),
+                    'change' => $this->_percentChange($sessions, $prevLookup[$source] ?? 0),
                 ];
             }
 
             return $sources;
         } catch (\Throwable $e) {
-            Craft::error('Analytics: Failed to fetch traffic sources: ' . $e->getMessage(), __METHOD__);
-            return ['error' => $e->getMessage()];
+            return $this->_error('Failed to fetch traffic sources', $e);
         }
     }
 
@@ -414,8 +403,7 @@ class AnalyticsService extends Component
 
             return $daily;
         } catch (\Throwable $e) {
-            Craft::error('Analytics: Failed to fetch daily stats: ' . $e->getMessage(), __METHOD__);
-            return ['error' => $e->getMessage()];
+            return $this->_error('Failed to fetch daily stats', $e);
         }
     }
 
@@ -425,64 +413,52 @@ class AnalyticsService extends Component
             $client = $this->_getClient();
             $propertyId = $this->_getPropertyId();
 
-            $dims = [new Dimension(['name' => 'eventName'])];
             $metrics = [new Metric(['name' => 'keyEvents'])];
-            $orderBys = [
-                new OrderBy([
-                    'metric' => new MetricOrderBy(['metric_name' => 'keyEvents']),
-                    'desc' => true,
-                ]),
-            ];
 
-            // Current period
-            $current = $client->runReport([
+            // Current + previous event counts in one request; the trailing `dateRange`
+            // dimension (date_range_0 / date_range_1) separates the two periods.
+            $response = $client->runReport([
                 'property' => $propertyId,
-                'dateRanges' => [new DateRange(['start_date' => '30daysAgo', 'end_date' => 'today'])],
-                'dimensions' => $dims,
+                'dateRanges' => $this->_comparisonDateRanges(),
+                'dimensions' => [new Dimension(['name' => 'eventName'])],
                 'metrics' => $metrics,
-                'orderBys' => $orderBys,
+                'orderBys' => [
+                    new OrderBy([
+                        'metric' => new MetricOrderBy(['metric_name' => 'keyEvents']),
+                        'desc' => true,
+                    ]),
+                ],
             ]);
 
-            // Previous period
-            $previous = $client->runReport([
-                'property' => $propertyId,
-                'dateRanges' => [new DateRange(['start_date' => '60daysAgo', 'end_date' => '31daysAgo'])],
-                'dimensions' => $dims,
-                'metrics' => $metrics,
-                'orderBys' => $orderBys,
-            ]);
-
-            // Build previous lookup
+            $currentCounts = [];
             $prevLookup = [];
-            foreach ($previous->getRows() as $row) {
-                $prevLookup[$row->getDimensionValues()[0]->getValue()] = (int) $row->getMetricValues()[0]->getValue();
+            foreach ($response->getRows() as $row) {
+                $dimValues = $row->getDimensionValues();
+                $name = $dimValues[0]->getValue();
+                $count = (int) $row->getMetricValues()[0]->getValue();
+
+                if ($dimValues[1]->getValue() === 'date_range_1') {
+                    $prevLookup[$name] = $count;
+                    continue;
+                }
+
+                $currentCounts[$name] = $count;
             }
 
             $events = [];
             $total = 0;
-            $prevTotal = 0;
-            foreach ($current->getRows() as $row) {
-                $name = $row->getDimensionValues()[0]->getValue();
-                $count = (int) $row->getMetricValues()[0]->getValue();
-                $prev = $prevLookup[$name] ?? 0;
+            foreach ($currentCounts as $name => $count) {
                 $total += $count;
-                $prevTotal += $prev;
-
                 $events[] = [
                     'name' => $name,
                     'count' => $count,
-                    'change' => $this->_percentChange($count, $prev),
+                    'change' => $this->_percentChange($count, $prevLookup[$name] ?? 0),
                 ];
             }
 
-            // Add previous-only events to total
-            $currentEventNames = array_column($events, 'name');
-            $currentEventNames = array_flip($currentEventNames);
-            foreach ($prevLookup as $name => $prev) {
-                if (!isset($currentEventNames[$name])) {
-                    $prevTotal += $prev;
-                }
-            }
+            // Previous total spans all events that had key events in the prior period,
+            // including any with no current-period activity.
+            $prevTotal = array_sum($prevLookup);
 
             // Fetch detail: event + page title
             $detailDims = [
@@ -533,8 +509,7 @@ class AnalyticsService extends Component
                 'totalChange' => $this->_percentChange($total, $prevTotal),
             ];
         } catch (\Throwable $e) {
-            Craft::error('Analytics: Failed to fetch key events: ' . $e->getMessage(), __METHOD__);
-            return ['error' => $e->getMessage()];
+            return $this->_error('Failed to fetch key events', $e);
         }
     }
 
@@ -552,17 +527,14 @@ class AnalyticsService extends Component
                 new Metric(['name' => 'activeUsers']),
             ];
 
-            // Current period
-            $current = $client->runReport([
+            // Both periods in one request (row 0 = current, row 1 = previous).
+            $response = $client->runReport([
                 'property' => $propertyId,
-                'dateRanges' => [
-                    new DateRange(['start_date' => '30daysAgo', 'end_date' => 'today']),
-                    new DateRange(['start_date' => '60daysAgo', 'end_date' => '31daysAgo']),
-                ],
+                'dateRanges' => $this->_comparisonDateRanges(),
                 'metrics' => $metrics,
             ]);
 
-            $rows = iterator_to_array($current->getRows());
+            $rows = iterator_to_array($response->getRows());
             $cur = $rows[0] ?? null;
             $prev = $rows[1] ?? null;
 
@@ -595,8 +567,7 @@ class AnalyticsService extends Component
                 'returningUsers' => $returningUsers,
             ];
         } catch (\Throwable $e) {
-            Craft::error('Analytics: Failed to fetch engagement stats: ' . $e->getMessage(), __METHOD__);
-            return ['error' => $e->getMessage()];
+            return $this->_error('Failed to fetch engagement stats', $e);
         }
     }
 
@@ -743,8 +714,7 @@ class AnalyticsService extends Component
                 'pages' => $pages,
             ];
         } catch (\Throwable $e) {
-            Craft::error('Analytics: Failed to fetch Search Console stats: ' . $e->getMessage(), __METHOD__);
-            return ['error' => $e->getMessage()];
+            return $this->_error('Failed to fetch Search Console stats', $e);
         }
     }
 
@@ -820,6 +790,31 @@ class AnalyticsService extends Component
         }
 
         return $this->_client;
+    }
+
+    /**
+     * Logs the underlying exception and returns a generic, user-safe error payload.
+     *
+     * Google client exceptions can embed request URLs or partial credentials, so the
+     * raw message is kept to the logs and never surfaced in the control panel.
+     */
+    private function _error(string $context, \Throwable $e): array
+    {
+        Craft::error("Analytics: {$context}: " . $e->getMessage(), __METHOD__);
+
+        return ['error' => Craft::t('craft-analytics', 'Unable to load analytics data. Check the logs for details.')];
+    }
+
+    /**
+     * Returns the current (last 30 days) and previous (the 30 days before that) date
+     * ranges, in that order. GA4 labels them `date_range_0` and `date_range_1` on each row.
+     */
+    private function _comparisonDateRanges(): array
+    {
+        return [
+            new DateRange(['start_date' => '30daysAgo', 'end_date' => 'today']),
+            new DateRange(['start_date' => '60daysAgo', 'end_date' => '31daysAgo']),
+        ];
     }
 
     private function _percentChange(float|int $current, float|int $previous): float

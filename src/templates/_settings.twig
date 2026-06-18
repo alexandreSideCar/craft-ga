@@ -35,13 +35,28 @@
 
 {% js %}
   var $lightswitch = $('#{{ "enableSearchConsole"|namespaceInputId }}');
-  
+
   $lightswitch.on('change', function() {
     if ($(this).val() == '1') {
       $('#searchConsoleSettings').removeClass('hidden');
     } else {
       $('#searchConsoleSettings').addClass('hidden');
     }
+  });
+
+  // The plugin settings template renders inside Craft's settings <form>, so the
+  // connect/disconnect actions can't use nested forms. Build a standalone POST
+  // form (with CSRF token) on the fly and submit it to the action endpoint.
+  $('[data-analytics-action]').on('click', function() {
+    var confirmMsg = $(this).data('analytics-confirm');
+    if (confirmMsg && !confirm(confirmMsg)) {
+      return;
+    }
+
+    $('<form/>', {method: 'post', action: Craft.getActionUrl($(this).data('analytics-action'))})
+      .append($('<input/>', {type: 'hidden', name: Craft.csrfTokenName, value: Craft.csrfTokenValue}))
+      .appendTo(Garnish.$bod)
+      .submit();
   });
 {% endjs %}
 
@@ -81,20 +96,6 @@
 </div>
 
 
-{# Preserve OAuth tokens on save #}
-{{ forms.hidden({
-    name: 'oauthAccessToken',
-    value: settings.oauthAccessToken,
-}) }}
-{{ forms.hidden({
-    name: 'oauthRefreshToken',
-    value: settings.oauthRefreshToken,
-}) }}
-{{ forms.hidden({
-    name: 'oauthExpiresAt',
-    value: settings.oauthExpiresAt,
-}) }}
-
 <hr>
 
 <h2>{{ 'Connection Status'|t('craft-analytics') }}</h2>
@@ -106,7 +107,7 @@
                 <span style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block;"></span>
                 {{ 'Connected to Google Analytics'|t('craft-analytics') }}
             </span>
-            <a href="{{ cpUrl('craft-analytics/oauth/disconnect') }}" class="btn small" onclick="return confirm('{{ 'Disconnect from Google Analytics?'|t('craft-analytics')|e('js') }}')">{{ 'Disconnect'|t('craft-analytics') }}</a>
+            <button type="button" class="btn small" data-analytics-action="craft-analytics/analytics/disconnect" data-analytics-confirm="{{ 'Disconnect from Google Analytics?'|t('craft-analytics')|e('html_attr') }}">{{ 'Disconnect'|t('craft-analytics') }}</button>
         </div>
     </div>
 {% else %}
@@ -117,7 +118,7 @@
                 {{ 'Not connected'|t('craft-analytics') }}
             </span>
             {% if settings.oauthClientId and settings.oauthClientSecret %}
-                <a href="{{ cpUrl('craft-analytics/oauth/connect') }}" class="btn submit">{{ 'Connect to Google'|t('craft-analytics') }}</a>
+                <button type="button" class="btn submit" data-analytics-action="craft-analytics/analytics/connect">{{ 'Connect to Google'|t('craft-analytics') }}</button>
             {% else %}
                 <span class="light">{{ 'Save your Client ID and Secret first, then connect.'|t('craft-analytics') }}</span>
             {% endif %}
