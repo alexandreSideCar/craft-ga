@@ -6,12 +6,13 @@ use Craft;
 use craft\base\Component;
 use craft\helpers\App;
 use craft\helpers\UrlHelper;
-use Google\Analytics\Data\V1beta\BetaAnalyticsDataClient;
+use Google\Analytics\Data\V1beta\Client\BetaAnalyticsDataClient;
 use Google\Analytics\Data\V1beta\DateRange;
 use Google\Analytics\Data\V1beta\Dimension;
 use Google\Analytics\Data\V1beta\Metric;
 use Google\Analytics\Data\V1beta\OrderBy;
 use Google\Analytics\Data\V1beta\OrderBy\MetricOrderBy;
+use Google\Analytics\Data\V1beta\RunReportRequest;
 use Google\Auth\Credentials\UserRefreshCredentials;
 use Google\Client as GoogleClient;
 use Google\Service\SearchConsole;
@@ -208,14 +209,14 @@ class AnalyticsService extends Component
             $result = [];
 
             foreach ($periods as $key => [$start, $end, $prevStart, $prevEnd]) {
-                $response = $client->runReport([
+                $response = $client->runReport(new RunReportRequest([
                     'property' => $propertyId,
-                    'dateRanges' => [
+                    'date_ranges' => [
                         new DateRange(['start_date' => $start, 'end_date' => $end]),
                         new DateRange(['start_date' => $prevStart, 'end_date' => $prevEnd]),
                     ],
                     'metrics' => $metrics,
-                ]);
+                ]));
 
                 $rows = iterator_to_array($response->getRows());
                 $current = $rows[0] ?? null;
@@ -261,19 +262,19 @@ class AnalyticsService extends Component
             // Both periods in one request. With multiple date ranges GA4 appends a
             // synthetic `dateRange` dimension (date_range_0 = current, date_range_1 = previous)
             // as the last dimension on each row.
-            $response = $client->runReport([
+            $response = $client->runReport(new RunReportRequest([
                 'property' => $propertyId,
-                'dateRanges' => $this->_comparisonDateRanges(),
+                'date_ranges' => $this->_comparisonDateRanges(),
                 'dimensions' => $dims,
                 'metrics' => $metrics,
-                'orderBys' => [
+                'order_bys' => [
                     new OrderBy([
                         'metric' => new MetricOrderBy(['metric_name' => 'screenPageViews']),
                         'desc' => true,
                     ]),
                 ],
                 'limit' => $limit * 5,
-            ]);
+            ]));
 
             $byPath = [];
             foreach ($response->getRows() as $row) {
@@ -325,18 +326,18 @@ class AnalyticsService extends Component
             $metrics = [new Metric(['name' => 'sessions'])];
 
             // Both periods in one request; the trailing `dateRange` dimension separates them.
-            $response = $client->runReport([
+            $response = $client->runReport(new RunReportRequest([
                 'property' => $propertyId,
-                'dateRanges' => $this->_comparisonDateRanges(),
+                'date_ranges' => $this->_comparisonDateRanges(),
                 'dimensions' => $dims,
                 'metrics' => $metrics,
-                'orderBys' => [
+                'order_bys' => [
                     new OrderBy([
                         'metric' => new MetricOrderBy(['metric_name' => 'sessions']),
                         'desc' => true,
                     ]),
                 ],
-            ]);
+            ]));
 
             $current = [];
             $prevLookup = [];
@@ -374,21 +375,21 @@ class AnalyticsService extends Component
             $client = $this->_getClient();
             $propertyId = $this->_getPropertyId();
 
-            $response = $client->runReport([
+            $response = $client->runReport(new RunReportRequest([
                 'property' => $propertyId,
-                'dateRanges' => [new DateRange(['start_date' => "{$days}daysAgo", 'end_date' => 'today'])],
+                'date_ranges' => [new DateRange(['start_date' => "{$days}daysAgo", 'end_date' => 'today'])],
                 'dimensions' => [new Dimension(['name' => 'date'])],
                 'metrics' => [
                     new Metric(['name' => 'activeUsers']),
                     new Metric(['name' => 'sessions']),
                     new Metric(['name' => 'screenPageViews']),
                 ],
-                'orderBys' => [
+                'order_bys' => [
                     new OrderBy([
                         'dimension' => new OrderBy\DimensionOrderBy(['dimension_name' => 'date']),
                     ]),
                 ],
-            ]);
+            ]));
 
             $daily = [];
             foreach ($response->getRows() as $row) {
@@ -417,18 +418,18 @@ class AnalyticsService extends Component
 
             // Current + previous event counts in one request; the trailing `dateRange`
             // dimension (date_range_0 / date_range_1) separates the two periods.
-            $response = $client->runReport([
+            $response = $client->runReport(new RunReportRequest([
                 'property' => $propertyId,
-                'dateRanges' => $this->_comparisonDateRanges(),
+                'date_ranges' => $this->_comparisonDateRanges(),
                 'dimensions' => [new Dimension(['name' => 'eventName'])],
                 'metrics' => $metrics,
-                'orderBys' => [
+                'order_bys' => [
                     new OrderBy([
                         'metric' => new MetricOrderBy(['metric_name' => 'keyEvents']),
                         'desc' => true,
                     ]),
                 ],
-            ]);
+            ]));
 
             $currentCounts = [];
             $prevLookup = [];
@@ -466,19 +467,19 @@ class AnalyticsService extends Component
                 new Dimension(['name' => 'pageTitle']),
                 new Dimension(['name' => 'pagePath']),
             ];
-            $detailResponse = $client->runReport([
+            $detailResponse = $client->runReport(new RunReportRequest([
                 'property' => $propertyId,
-                'dateRanges' => [new DateRange(['start_date' => '30daysAgo', 'end_date' => 'today'])],
+                'date_ranges' => [new DateRange(['start_date' => '30daysAgo', 'end_date' => 'today'])],
                 'dimensions' => $detailDims,
                 'metrics' => $metrics,
-                'orderBys' => [
+                'order_bys' => [
                     new OrderBy([
                         'metric' => new MetricOrderBy(['metric_name' => 'keyEvents']),
                         'desc' => true,
                     ]),
                 ],
                 'limit' => 100,
-            ]);
+            ]));
 
             $details = [];
             foreach ($detailResponse->getRows() as $row) {
@@ -528,11 +529,11 @@ class AnalyticsService extends Component
             ];
 
             // Both periods in one request (row 0 = current, row 1 = previous).
-            $response = $client->runReport([
+            $response = $client->runReport(new RunReportRequest([
                 'property' => $propertyId,
-                'dateRanges' => $this->_comparisonDateRanges(),
+                'date_ranges' => $this->_comparisonDateRanges(),
                 'metrics' => $metrics,
-            ]);
+            ]));
 
             $rows = iterator_to_array($response->getRows());
             $cur = $rows[0] ?? null;
