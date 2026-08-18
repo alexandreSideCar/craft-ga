@@ -261,6 +261,35 @@
     </div>
   </div>
 
+  {# ── Top Referrals ── #}
+  <div class="pane ca-section">
+    <h2 class="ca-pane-title">{{ 'Top Referrals (30 days)'|t('craft-ga') }}</h2>
+    {% if topReferrals.error is defined %}
+      <p class="error">{{ topReferrals.error }}</p>
+    {% elseif topReferrals|length %}
+      <div class="ca-table-wrap"><table class="data fullwidth">
+        <thead>
+          <tr>
+            <th>{{ 'Source'|t('craft-ga') }}</th>
+            <th class="ca-right">{{ 'Sessions'|t('craft-ga') }}</th>
+            <th class="ca-right" style="width: 70px;">{{ 'vs 30d'|t('craft-ga') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for referral in topReferrals %}
+            <tr>
+              <td class="ca-truncate" title="{{ referral.source }}">{{ referral.source }}</td>
+              <td class="ca-right ca-bold ca-tabnum">{{ referral.sessions|number_format }}</td>
+              <td class="ca-right">{{ _self.changeBadge(referral.change) }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    {% else %}
+      <p class="light">{{ 'No referral traffic in this period.'|t('craft-ga') }}</p>
+    {% endif %}
+  </div>
+
   {# ── Key Events & Engagement ── #}
   <div class="ca-grid ca-grid--1-1 ca-section">
     {# Key Events #}

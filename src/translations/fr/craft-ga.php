@@ -46,6 +46,8 @@ return [
     'vs 30d' => 'vs 30j',
     'No data available.' => 'Aucune donnée disponible.',
     'Traffic Sources (30 days)' => 'Sources de trafic (30 jours)',
+    'Top Referrals (30 days)' => 'Principaux référents (30 jours)',
+    'No referral traffic in this period.' => 'Aucun trafic référent durant cette période.',
     'Source' => 'Source',
     'Clear Cache & Refresh' => 'Vider le cache et rafraîchir',
 

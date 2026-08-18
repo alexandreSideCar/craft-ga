@@ -9,6 +9,10 @@ use craft\helpers\UrlHelper;
 use Google\Analytics\Data\V1beta\Client\BetaAnalyticsDataClient;
 use Google\Analytics\Data\V1beta\DateRange;
 use Google\Analytics\Data\V1beta\Dimension;
+use Google\Analytics\Data\V1beta\Filter;
+use Google\Analytics\Data\V1beta\Filter\StringFilter;
+use Google\Analytics\Data\V1beta\Filter\StringFilter\MatchType;
+use Google\Analytics\Data\V1beta\FilterExpression;
 use Google\Analytics\Data\V1beta\Metric;
 use Google\Analytics\Data\V1beta\OrderBy;
 use Google\Analytics\Data\V1beta\OrderBy\MetricOrderBy;
@@ -143,6 +147,11 @@ class AnalyticsService extends Component
     public function getTopPages(int $limit = 10): array
     {
         return $this->_getCached('top-pages', fn() => $this->_fetchTopPages($limit));
+    }
+
+    public function getTopReferrals(int $limit = 10): array
+    {
+        return $this->_getCached('top-referrals', fn() => $this->_fetchTopReferrals($limit));
     }
 
     public function getDailyStats(int $days = 30): array
@@ -384,6 +393,77 @@ class AnalyticsService extends Component
             return $sources;
         } catch (\Throwable $e) {
             return $this->_error('Failed to fetch traffic sources', $e);
+        }
+    }
+
+    /**
+     * Fetches the top referral sources (e.g. `lapresse.ca`) for the last 30 days,
+     * with a vs-previous-30-days change per source.
+     *
+     * Sessions are filtered to GA4's "Referral" default channel group, so search
+     * engines, direct traffic, and social networks don't crowd out true referrers.
+     */
+    private function _fetchTopReferrals(int $limit): array
+    {
+        try {
+            $propertyId = $this->_getPropertyId();
+
+            // Both periods in one request; the trailing `dateRange` dimension separates them.
+            $response = $this->_runReport(new RunReportRequest([
+                'property' => $propertyId,
+                'date_ranges' => $this->_comparisonDateRanges(),
+                'dimensions' => [new Dimension(['name' => 'sessionSource'])],
+                'metrics' => [new Metric(['name' => 'sessions'])],
+                'dimension_filter' => new FilterExpression([
+                    'filter' => new Filter([
+                        'field_name' => 'sessionDefaultChannelGroup',
+                        'string_filter' => new StringFilter([
+                            'match_type' => MatchType::EXACT,
+                            'value' => 'Referral',
+                        ]),
+                    ]),
+                ]),
+                'order_bys' => [
+                    new OrderBy([
+                        'metric' => new MetricOrderBy(['metric_name' => 'sessions']),
+                        'desc' => true,
+                    ]),
+                ],
+                // Over-fetch so previous-period rows for the top current sources
+                // are present even when the two periods rank differently.
+                'limit' => $limit * 5,
+            ]));
+
+            $current = [];
+            $prevLookup = [];
+            foreach ($response->getRows() as $row) {
+                $dimValues = $row->getDimensionValues();
+                $source = $dimValues[0]->getValue();
+                $sessions = (int) $row->getMetricValues()[0]->getValue();
+
+                if ($dimValues[1]->getValue() === 'date_range_1') {
+                    $prevLookup[$source] = ($prevLookup[$source] ?? 0) + $sessions;
+                    continue;
+                }
+
+                $current[$source] = ($current[$source] ?? 0) + $sessions;
+            }
+
+            arsort($current);
+            $current = array_slice($current, 0, $limit, true);
+
+            $referrals = [];
+            foreach ($current as $source => $sessions) {
+                $referrals[] = [
+                    'source' => $source,
+                    'sessions' => $sessions,
+                    'change' => $this->_percentChange($sessions, $prevLookup[$source] ?? 0),
+                ];
+            }
+
+            return $referrals;
+        } catch (\Throwable $e) {
+            return $this->_error('Failed to fetch top referrals', $e);
         }
     }
 

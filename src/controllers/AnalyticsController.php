@@ -48,6 +48,7 @@ class AnalyticsController extends Controller
         $summary = $isConfigured ? $service->getSummaryStats() : [];
         $topPages = $isConfigured ? $service->getTopPages() : [];
         $trafficSources = $isConfigured ? $service->getTrafficSources() : [];
+        $topReferrals = $isConfigured ? $service->getTopReferrals() : [];
         $dailyStats = $isConfigured ? $service->getDailyStats() : [];
         $keyEvents = $isConfigured ? $service->getKeyEvents() : [];
         $engagement = $isConfigured ? $service->getEngagementStats() : [];
@@ -59,6 +60,7 @@ class AnalyticsController extends Controller
             'summary' => $summary,
             'topPages' => $topPages,
             'trafficSources' => $trafficSources,
+            'topReferrals' => $topReferrals,
             'dailyStats' => $dailyStats,
             'keyEvents' => $keyEvents,
             'engagement' => $engagement,

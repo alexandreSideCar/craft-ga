@@ -5,6 +5,16 @@ All notable changes to Craft GA are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.1.0 - 2026-08-18
+
+### Added
+
+- New **Top Referrals (30 days)** panel on the dashboard, listing the top
+  referring sources (e.g. `lapresse.ca`) by sessions with a change indicator
+  vs the previous 30 days. Sessions are filtered to GA4's "Referral" default
+  channel group, so search engines, direct traffic, and social networks don't
+  crowd out true referrers.
+
 ## 2.0.1 - 2026-08-18
 
 ### Fixed
