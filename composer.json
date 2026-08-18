@@ -13,8 +13,8 @@
     "search-console"
   ],
   "support": {
-    "issues": "https://github.com/alexandreSideCar/craft-analytics/issues",
-    "source": "https://github.com/alexandreSideCar/craft-analytics"
+    "issues": "https://github.com/alexandreSideCar/craft-ga/issues",
+    "source": "https://github.com/alexandreSideCar/craft-ga"
   },
   "require": {
     "php": "^8.2",

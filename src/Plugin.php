@@ -93,7 +93,7 @@ class Plugin extends BasePlugin
             UserPermissions::EVENT_REGISTER_PERMISSIONS,
             function (RegisterUserPermissionsEvent $event) {
                 $event->permissions[] = [
-                    'heading' => Craft::t('craft-ga', 'Analytics'),
+                    'heading' => Craft::t('craft-ga', 'Craft GA'),
                     'permissions' => [
                         self::PERMISSION_VIEW => [
                             'label' => Craft::t('craft-ga', 'View Analytics'),

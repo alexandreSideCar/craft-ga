@@ -37,6 +37,14 @@ php craft plugin/install craft-ga
 
 Or install via the Craft CMS Plugin Store.
 
+### Upgrading from 1.x
+
+Version 2.0.0 renamed this plugin from `sidecar/craft-analytics` to
+`sidecar/craft-ga` and changed its handle. Because Craft keys plugin settings by
+handle, upgrading does not carry your settings over — you will need to reconnect
+Google and re-enter your GA4 property ID. See the
+[upgrade steps in the changelog](CHANGELOG.md#200---2026-08-18).
+
 ## Google Cloud Setup
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
