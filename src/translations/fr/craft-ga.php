@@ -2,6 +2,7 @@
 
 return [
     // Plugin
+    'Craft GA' => 'Craft GA',
     'Analytics' => 'Analytique',
 
     // Settings

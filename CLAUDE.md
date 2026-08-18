@@ -1,5 +1,5 @@
 <!-- craftcms-claude-skills v1.2.0 -->
-# Analytics — Craft CMS 5 Plugin
+# Craft GA — Craft CMS 5 Plugin
 
 Google Analytics 4 dashboard for Craft CMS. Provides a CP section, a dashboard widget, and a service that talks to the GA4 Data API and Search Console via the Google API client.
 

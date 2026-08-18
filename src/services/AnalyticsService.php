@@ -1,6 +1,6 @@
 <?php
 
-namespace sidecar\craftanalytics\services;
+namespace sidecar\craftga\services;
 
 use Craft;
 use craft\base\Component;
@@ -17,7 +17,7 @@ use Google\Auth\Credentials\UserRefreshCredentials;
 use Google\Client as GoogleClient;
 use Google\Service\SearchConsole;
 use Google\Service\SearchConsole\SearchAnalyticsQueryRequest;
-use sidecar\craftanalytics\Plugin;
+use sidecar\craftga\Plugin;
 use yii\caching\TagDependency;
 
 class AnalyticsService extends Component
@@ -26,8 +26,8 @@ class AnalyticsService extends Component
 
     private const SCOPE_ANALYTICS = 'https://www.googleapis.com/auth/analytics.readonly';
     private const SCOPE_SEARCH_CONSOLE = 'https://www.googleapis.com/auth/webmasters.readonly';
-    private const CACHE_PREFIX = 'craft-analytics:';
-    private const CACHE_TAG = 'craft-analytics';
+    private const CACHE_PREFIX = 'craft-ga:';
+    private const CACHE_TAG = 'craft-ga';
 
     public function isConfigured(): bool
     {
@@ -60,7 +60,7 @@ class AnalyticsService extends Component
 
     public function getRedirectUri(): string
     {
-        $url = UrlHelper::cpUrl('craft-analytics/oauth/callback', null, 'https');
+        $url = UrlHelper::cpUrl('craft-ga/oauth/callback', null, 'https');
         
         // Supprime tout paramètre d'URL dynamique (ex: ?site=en) ajouté par Craft
         // pour garantir que l'URL soit toujours statique et acceptée par Google.
@@ -803,7 +803,7 @@ class AnalyticsService extends Component
     {
         Craft::error("Analytics: {$context}: " . $e->getMessage(), __METHOD__);
 
-        return ['error' => Craft::t('craft-analytics', 'Unable to load analytics data. Check the logs for details.')];
+        return ['error' => Craft::t('craft-ga', 'Unable to load analytics data. Check the logs for details.')];
     }
 
     /**

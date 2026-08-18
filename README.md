@@ -1,9 +1,9 @@
-# Craft Analytics
+# Craft GA
 
 Google Analytics 4 dashboard plugin for Craft CMS 5.
 
-![Packagist Version](https://img.shields.io/packagist/v/sidecar/craft-analytics)
-![License](https://img.shields.io/packagist/l/sidecar/craft-analytics)
+![Packagist Version](https://img.shields.io/packagist/v/sidecar/craft-ga)
+![License](https://img.shields.io/packagist/l/sidecar/craft-ga)
 
 ## Features
 
@@ -31,8 +31,8 @@ Google Analytics 4 dashboard plugin for Craft CMS 5.
 ## Installation
 
 ```bash
-composer require sidecar/craft-analytics
-php craft plugin/install craft-analytics
+composer require sidecar/craft-ga
+php craft plugin/install craft-ga
 ```
 
 Or install via the Craft CMS Plugin Store.
