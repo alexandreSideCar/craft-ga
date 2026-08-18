@@ -130,11 +130,11 @@
 
 {{ forms.textField({
     label: 'Cache Duration (seconds)'|t('craft-ga'),
-    instructions: 'How long to cache API responses. Default: 300 (5 minutes).'|t('craft-ga'),
+    instructions: 'How long to cache API responses, in seconds (minimum 1). Default: 300 (5 minutes).'|t('craft-ga'),
     id: 'cacheDuration',
     name: 'cacheDuration',
     value: settings.cacheDuration,
     type: 'number',
-    min: 0,
+    min: 1,
     size: 10,
 }) }}

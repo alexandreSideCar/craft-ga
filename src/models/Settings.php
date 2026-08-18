@@ -23,7 +23,9 @@ class Settings extends Model
             ['enableSearchConsole', 'boolean'],
             ['enableSearchConsole', 'default', 'value' => false],
             ['oauthExpiresAt', 'integer'],
-            ['cacheDuration', 'integer', 'min' => 0],
+            // Yii treats a duration of 0 as "never expire", so a 0 here would cache
+            // API responses forever rather than disabling the cache.
+            ['cacheDuration', 'integer', 'min' => 1],
             ['cacheDuration', 'default', 'value' => 300],
         ];
     }

@@ -34,5 +34,11 @@
     "class": "sidecar\\craftga\\Plugin",
     "developer": "Side-Car",
     "craftcms-claude-skills": "1.2.0"
+  },
+  "config": {
+    "allow-plugins": {
+      "yiisoft/yii2-composer": true,
+      "craftcms/plugin-installer": true
+    }
   }
 }

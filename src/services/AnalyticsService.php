@@ -13,10 +13,12 @@ use Google\Analytics\Data\V1beta\Metric;
 use Google\Analytics\Data\V1beta\OrderBy;
 use Google\Analytics\Data\V1beta\OrderBy\MetricOrderBy;
 use Google\Analytics\Data\V1beta\RunReportRequest;
+use Google\Analytics\Data\V1beta\RunReportResponse;
 use Google\Auth\Credentials\UserRefreshCredentials;
 use Google\Client as GoogleClient;
 use Google\Service\SearchConsole;
 use Google\Service\SearchConsole\SearchAnalyticsQueryRequest;
+use GuzzleHttp\Exception\RequestException;
 use sidecar\craftga\Plugin;
 use yii\caching\TagDependency;
 
@@ -28,6 +30,23 @@ class AnalyticsService extends Component
     private const SCOPE_SEARCH_CONSOLE = 'https://www.googleapis.com/auth/webmasters.readonly';
     private const CACHE_PREFIX = 'craft-ga:';
     private const CACHE_TAG = 'craft-ga';
+
+    /**
+     * @var int Seconds to cache an error payload — long enough to absorb a burst of
+     * dashboard loads during an API outage, short enough to recover quickly.
+     */
+    private const ERROR_CACHE_DURATION = 30;
+
+    /**
+     * @var int Deadline in milliseconds for each GA4 Data API call, so a slow or
+     * unreachable Google API can't hang a CP request on the client's ~60s default.
+     */
+    private const GA_CALL_TIMEOUT_MS = 15000;
+
+    /**
+     * @var int Timeout in seconds for Search Console HTTP calls (token refresh included).
+     */
+    private const SEARCH_CONSOLE_TIMEOUT = 15;
 
     public function isConfigured(): bool
     {
@@ -113,65 +132,67 @@ class AnalyticsService extends Component
 
     public function getSummaryStats(): array
     {
-        $duration = Plugin::$plugin->getSettings()->cacheDuration;
-
-        return Craft::$app->getCache()->getOrSet(self::CACHE_PREFIX . 'summary', function () {
-            return $this->_fetchSummaryStats();
-        }, $duration, $this->_cacheDependency());
+        return $this->_getCached('summary', fn() => $this->_fetchSummaryStats());
     }
 
     public function getTrafficSources(): array
     {
-        $duration = Plugin::$plugin->getSettings()->cacheDuration;
-
-        return Craft::$app->getCache()->getOrSet(self::CACHE_PREFIX . 'traffic-sources', function () {
-            return $this->_fetchTrafficSources();
-        }, $duration, $this->_cacheDependency());
+        return $this->_getCached('traffic-sources', fn() => $this->_fetchTrafficSources());
     }
 
     public function getTopPages(int $limit = 10): array
     {
-        $duration = Plugin::$plugin->getSettings()->cacheDuration;
-
-        return Craft::$app->getCache()->getOrSet(self::CACHE_PREFIX . 'top-pages', function () use ($limit) {
-            return $this->_fetchTopPages($limit);
-        }, $duration, $this->_cacheDependency());
+        return $this->_getCached('top-pages', fn() => $this->_fetchTopPages($limit));
     }
 
     public function getDailyStats(int $days = 30): array
     {
-        $duration = Plugin::$plugin->getSettings()->cacheDuration;
-
-        return Craft::$app->getCache()->getOrSet(self::CACHE_PREFIX . "daily-{$days}", function () use ($days) {
-            return $this->_fetchDailyStats($days);
-        }, $duration, $this->_cacheDependency());
+        return $this->_getCached("daily-{$days}", fn() => $this->_fetchDailyStats($days));
     }
 
     public function getKeyEvents(): array
     {
-        $duration = Plugin::$plugin->getSettings()->cacheDuration;
-
-        return Craft::$app->getCache()->getOrSet(self::CACHE_PREFIX . 'key-events', function () {
-            return $this->_fetchKeyEvents();
-        }, $duration, $this->_cacheDependency());
+        return $this->_getCached('key-events', fn() => $this->_fetchKeyEvents());
     }
 
     public function getEngagementStats(): array
     {
-        $duration = Plugin::$plugin->getSettings()->cacheDuration;
-
-        return Craft::$app->getCache()->getOrSet(self::CACHE_PREFIX . 'engagement', function () {
-            return $this->_fetchEngagementStats();
-        }, $duration, $this->_cacheDependency());
+        return $this->_getCached('engagement', fn() => $this->_fetchEngagementStats());
     }
 
     public function getSearchConsoleStats(): array
     {
-        $duration = Plugin::$plugin->getSettings()->cacheDuration;
+        return $this->_getCached('search-console', fn() => $this->_fetchSearchConsoleStats());
+    }
 
-        return Craft::$app->getCache()->getOrSet(self::CACHE_PREFIX . 'search-console', function () {
-            return $this->_fetchSearchConsoleStats();
-        }, $duration, $this->_cacheDependency());
+    /**
+     * Returns the cached report for the given key, fetching it on a miss.
+     *
+     * Successful payloads are cached for the configured duration; error payloads
+     * (see {@see _error()}) only for {@see ERROR_CACHE_DURATION}, so a transient
+     * API failure doesn't pin the error banner for the full cache window.
+     */
+    private function _getCached(string $key, callable $fetch): array
+    {
+        $cache = Craft::$app->getCache();
+        $cacheKey = self::CACHE_PREFIX . $key;
+
+        $value = $cache->get($cacheKey);
+        if ($value !== false) {
+            return $value;
+        }
+
+        $value = $fetch();
+
+        // Yii treats 0 as "never expire" — clamp so a stored 0 from an older
+        // install can't cache reports forever.
+        $duration = isset($value['error'])
+            ? self::ERROR_CACHE_DURATION
+            : max(1, (int) Plugin::$plugin->getSettings()->cacheDuration);
+
+        $cache->set($cacheKey, $value, $duration, $this->_cacheDependency());
+
+        return $value;
     }
 
     public function clearCache(): void
@@ -191,7 +212,6 @@ class AnalyticsService extends Component
     private function _fetchSummaryStats(): array
     {
         try {
-            $client = $this->_getClient();
             $propertyId = $this->_getPropertyId();
 
             $periods = [
@@ -209,7 +229,7 @@ class AnalyticsService extends Component
             $result = [];
 
             foreach ($periods as $key => [$start, $end, $prevStart, $prevEnd]) {
-                $response = $client->runReport(new RunReportRequest([
+                $response = $this->_runReport(new RunReportRequest([
                     'property' => $propertyId,
                     'date_ranges' => [
                         new DateRange(['start_date' => $start, 'end_date' => $end]),
@@ -250,7 +270,6 @@ class AnalyticsService extends Component
     private function _fetchTopPages(int $limit): array
     {
         try {
-            $client = $this->_getClient();
             $propertyId = $this->_getPropertyId();
 
             $dims = [
@@ -262,7 +281,7 @@ class AnalyticsService extends Component
             // Both periods in one request. With multiple date ranges GA4 appends a
             // synthetic `dateRange` dimension (date_range_0 = current, date_range_1 = previous)
             // as the last dimension on each row.
-            $response = $client->runReport(new RunReportRequest([
+            $response = $this->_runReport(new RunReportRequest([
                 'property' => $propertyId,
                 'date_ranges' => $this->_comparisonDateRanges(),
                 'dimensions' => $dims,
@@ -319,14 +338,13 @@ class AnalyticsService extends Component
     private function _fetchTrafficSources(): array
     {
         try {
-            $client = $this->_getClient();
             $propertyId = $this->_getPropertyId();
 
             $dims = [new Dimension(['name' => 'sessionDefaultChannelGroup'])];
             $metrics = [new Metric(['name' => 'sessions'])];
 
             // Both periods in one request; the trailing `dateRange` dimension separates them.
-            $response = $client->runReport(new RunReportRequest([
+            $response = $this->_runReport(new RunReportRequest([
                 'property' => $propertyId,
                 'date_ranges' => $this->_comparisonDateRanges(),
                 'dimensions' => $dims,
@@ -372,10 +390,9 @@ class AnalyticsService extends Component
     private function _fetchDailyStats(int $days): array
     {
         try {
-            $client = $this->_getClient();
             $propertyId = $this->_getPropertyId();
 
-            $response = $client->runReport(new RunReportRequest([
+            $response = $this->_runReport(new RunReportRequest([
                 'property' => $propertyId,
                 'date_ranges' => [new DateRange(['start_date' => "{$days}daysAgo", 'end_date' => 'today'])],
                 'dimensions' => [new Dimension(['name' => 'date'])],
@@ -411,14 +428,13 @@ class AnalyticsService extends Component
     private function _fetchKeyEvents(): array
     {
         try {
-            $client = $this->_getClient();
             $propertyId = $this->_getPropertyId();
 
             $metrics = [new Metric(['name' => 'keyEvents'])];
 
             // Current + previous event counts in one request; the trailing `dateRange`
             // dimension (date_range_0 / date_range_1) separates the two periods.
-            $response = $client->runReport(new RunReportRequest([
+            $response = $this->_runReport(new RunReportRequest([
                 'property' => $propertyId,
                 'date_ranges' => $this->_comparisonDateRanges(),
                 'dimensions' => [new Dimension(['name' => 'eventName'])],
@@ -467,7 +483,7 @@ class AnalyticsService extends Component
                 new Dimension(['name' => 'pageTitle']),
                 new Dimension(['name' => 'pagePath']),
             ];
-            $detailResponse = $client->runReport(new RunReportRequest([
+            $detailResponse = $this->_runReport(new RunReportRequest([
                 'property' => $propertyId,
                 'date_ranges' => [new DateRange(['start_date' => '30daysAgo', 'end_date' => 'today'])],
                 'dimensions' => $detailDims,
@@ -517,7 +533,6 @@ class AnalyticsService extends Component
     private function _fetchEngagementStats(): array
     {
         try {
-            $client = $this->_getClient();
             $propertyId = $this->_getPropertyId();
 
             $metrics = [
@@ -529,7 +544,7 @@ class AnalyticsService extends Component
             ];
 
             // Both periods in one request (row 0 = current, row 1 = previous).
-            $response = $client->runReport(new RunReportRequest([
+            $response = $this->_runReport(new RunReportRequest([
                 'property' => $propertyId,
                 'date_ranges' => $this->_comparisonDateRanges(),
                 'metrics' => $metrics,
@@ -730,19 +745,68 @@ class AnalyticsService extends Component
             throw new \RuntimeException('Not connected to Google. Please authorize in plugin settings.');
         }
 
-        try {
-            $client = new GoogleClient();
-            $client->setClientId($clientId);
-            $client->setClientSecret($clientSecret);
-            $client->setAccessType('offline');
-            $client->fetchAccessTokenWithRefreshToken($refreshToken);
+        $client = new GoogleClient();
+        $client->setClientId($clientId);
+        $client->setClientSecret($clientSecret);
+        $client->setAccessType('offline');
+        // Explicit timeout for every Search Console HTTP call, token refresh included,
+        // so an unreachable Google API can't hang a CP request indefinitely.
+        $client->setHttpClient(Craft::createGuzzleClient(['timeout' => self::SEARCH_CONSOLE_TIMEOUT]));
 
-            return new SearchConsole($client);
+        try {
+            $token = $client->fetchAccessTokenWithRefreshToken($refreshToken);
         } catch (\Throwable $e) {
+            if ($this->_isRevokedGrant($e)) {
+                // Google definitively rejected the refresh token (revoked/expired) —
+                // clear it so the settings screen prompts for a reconnect.
+                Craft::error('Analytics: Google refresh token was revoked: ' . $e->getMessage(), __METHOD__);
+                $this->disconnect();
+                throw new \RuntimeException('Google authentication expired. Please reconnect in plugin settings.');
+            }
+
+            // Transient failure (network, timeout, Google 5xx) — keep the stored
+            // tokens so a blip at Google doesn't force a full reconnect.
             Craft::error('Analytics: Search Console token refresh failed: ' . $e->getMessage(), __METHOD__);
-            $this->disconnect();
-            throw new \RuntimeException('Google authentication expired. Please reconnect in plugin settings.');
+            throw new \RuntimeException('Could not reach Google to refresh authentication. Try again later.');
         }
+
+        // Some auth stack versions report the OAuth error in the return value
+        // instead of throwing.
+        if (!empty($token['error'])) {
+            if ($token['error'] === 'invalid_grant') {
+                Craft::error('Analytics: Google refresh token was revoked (invalid_grant).', __METHOD__);
+                $this->disconnect();
+                throw new \RuntimeException('Google authentication expired. Please reconnect in plugin settings.');
+            }
+
+            Craft::error("Analytics: Google rejected the token refresh: {$token['error']}", __METHOD__);
+            throw new \RuntimeException('Google rejected the authentication refresh. Check the logs for details.');
+        }
+
+        return new SearchConsole($client);
+    }
+
+    /**
+     * Returns whether the given exception is Google's token endpoint definitively
+     * rejecting the refresh token (`invalid_grant` on a 400/401), as opposed to a
+     * transient network or server failure.
+     */
+    private function _isRevokedGrant(\Throwable $e): bool
+    {
+        if (!$e instanceof RequestException) {
+            return false;
+        }
+
+        $response = $e->getResponse();
+        if ($response === null) {
+            return false;
+        }
+
+        if (!in_array($response->getStatusCode(), [400, 401], true)) {
+            return false;
+        }
+
+        return str_contains((string) $response->getBody(), 'invalid_grant');
     }
 
     private function _getSearchConsoleSiteUrl(): string
@@ -784,13 +848,24 @@ class AnalyticsService extends Component
                     'credentials' => $credentials,
                 ]);
             } catch (\Throwable $e) {
-                Craft::error('Analytics: OAuth token refresh failed: ' . $e->getMessage(), __METHOD__);
-                $this->disconnect();
-                throw new \RuntimeException('Google authentication expired. Please reconnect in plugin settings.');
+                // No network I/O happens here — a failure is a construction/config
+                // problem, not an auth rejection, so the stored tokens are kept.
+                // Actual token refresh errors surface on the first report call.
+                Craft::error('Analytics: could not build the GA4 client: ' . $e->getMessage(), __METHOD__);
+                throw new \RuntimeException('Could not initialize the Google Analytics client. Check the logs for details.');
             }
         }
 
         return $this->_client;
+    }
+
+    /**
+     * Runs a GA4 report with an explicit deadline, so a slow or unreachable
+     * Google API can't hang a CP request on the client's default timeout.
+     */
+    private function _runReport(RunReportRequest $request): RunReportResponse
+    {
+        return $this->_getClient()->runReport($request, ['timeoutMillis' => self::GA_CALL_TIMEOUT_MS]);
     }
 
     /**

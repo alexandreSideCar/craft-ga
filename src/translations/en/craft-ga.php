@@ -23,7 +23,7 @@ return [
     'Connect to Google' => 'Connect to Google',
     'Save your Client ID and Secret first, then connect.' => 'Save your Client ID and Secret first, then connect.',
     'Cache Duration (seconds)' => 'Cache Duration (seconds)',
-    'How long to cache API responses. Default: 300 (5 minutes).' => 'How long to cache API responses. Default: 300 (5 minutes).',
+    'How long to cache API responses, in seconds (minimum 1). Default: 300 (5 minutes).' => 'How long to cache API responses, in seconds (minimum 1). Default: 300 (5 minutes).',
 
     // CP Page
     'Google Analytics is not configured yet.' => 'Google Analytics is not configured yet.',

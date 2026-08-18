@@ -5,6 +5,26 @@ All notable changes to Craft GA are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.0.1 - 2026-08-18
+
+### Fixed
+
+- A transient network failure or Google outage during token refresh no longer
+  wipes the stored connection. The plugin now disconnects only when Google
+  definitively rejects the refresh token (`invalid_grant`); transient errors
+  keep the tokens and surface a "try again later" message instead of forcing a
+  full reconnect.
+- Every Google API call now has an explicit timeout (15s for GA4 report calls
+  and for all Search Console requests, token refresh included), so an
+  unreachable Google API can no longer hang a control panel request on the
+  clients' unbounded or ~60s defaults.
+- A cache duration of `0` no longer caches API responses forever. Yii treats a
+  duration of 0 as "never expire", so the setting now enforces a minimum of 1
+  second, and a `0` stored by an older install is clamped at runtime.
+- API error responses are now cached for only 30 seconds instead of the full
+  cache duration, so a brief API failure no longer pins the error banner to the
+  dashboard for the whole cache window.
+
 ## 2.0.0 - 2026-08-18
 
 This release renames the plugin from **Analytics** to **Craft GA**. The plugin
