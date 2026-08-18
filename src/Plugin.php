@@ -1,6 +1,6 @@
 <?php
 
-namespace sidecar\craftanalytics;
+namespace sidecar\craftga;
 
 use Craft;
 use craft\base\Model;
@@ -11,9 +11,9 @@ use craft\events\RegisterUserPermissionsEvent;
 use craft\services\Dashboard;
 use craft\services\UserPermissions;
 use craft\web\UrlManager;
-use sidecar\craftanalytics\models\Settings;
-use sidecar\craftanalytics\services\AnalyticsService;
-use sidecar\craftanalytics\widgets\AnalyticsWidget;
+use sidecar\craftga\models\Settings;
+use sidecar\craftga\services\AnalyticsService;
+use sidecar\craftga\widgets\AnalyticsWidget;
 use yii\base\Event;
 
 /**
@@ -37,8 +37,8 @@ class Plugin extends BasePlugin
         ];
     }
 
-    public const PERMISSION_VIEW = 'craft-analytics:view';
-    public const PERMISSION_MANAGE = 'craft-analytics:manage';
+    public const PERMISSION_VIEW = 'craft-ga:view';
+    public const PERMISSION_MANAGE = 'craft-ga:manage';
 
     public function init(): void
     {
@@ -58,7 +58,7 @@ class Plugin extends BasePlugin
         }
 
         $item = parent::getCpNavItem();
-        $item['label'] = Craft::t('craft-analytics', 'Analytics');
+        $item['label'] = Craft::t('craft-ga', 'Craft GA');
         return $item;
     }
 
@@ -69,7 +69,7 @@ class Plugin extends BasePlugin
 
     protected function settingsHtml(): ?string
     {
-        return Craft::$app->getView()->renderTemplate('craft-analytics/_settings', [
+        return Craft::$app->getView()->renderTemplate('craft-ga/_settings', [
             'settings' => $this->getSettings(),
         ]);
     }
@@ -80,8 +80,8 @@ class Plugin extends BasePlugin
             UrlManager::class,
             UrlManager::EVENT_REGISTER_CP_URL_RULES,
             function (RegisterUrlRulesEvent $event) {
-                $event->rules['craft-analytics'] = 'craft-analytics/analytics/index';
-                $event->rules['craft-analytics/oauth/callback'] = 'craft-analytics/analytics/callback';
+                $event->rules['craft-ga'] = 'craft-ga/analytics/index';
+                $event->rules['craft-ga/oauth/callback'] = 'craft-ga/analytics/callback';
             }
         );
     }
@@ -93,13 +93,13 @@ class Plugin extends BasePlugin
             UserPermissions::EVENT_REGISTER_PERMISSIONS,
             function (RegisterUserPermissionsEvent $event) {
                 $event->permissions[] = [
-                    'heading' => Craft::t('craft-analytics', 'Analytics'),
+                    'heading' => Craft::t('craft-ga', 'Craft GA'),
                     'permissions' => [
                         self::PERMISSION_VIEW => [
-                            'label' => Craft::t('craft-analytics', 'View Analytics'),
+                            'label' => Craft::t('craft-ga', 'View Analytics'),
                             'nested' => [
                                 self::PERMISSION_MANAGE => [
-                                    'label' => Craft::t('craft-analytics', 'Manage Analytics'),
+                                    'label' => Craft::t('craft-ga', 'Manage Analytics'),
                                 ],
                             ],
                         ],

@@ -1,12 +1,12 @@
 <?php
 
-namespace sidecar\craftanalytics\controllers;
+namespace sidecar\craftga\controllers;
 
 use Craft;
 use craft\helpers\StringHelper;
 use craft\helpers\UrlHelper;
 use craft\web\Controller;
-use sidecar\craftanalytics\Plugin;
+use sidecar\craftga\Plugin;
 use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
 use yii\web\Response;
@@ -53,7 +53,7 @@ class AnalyticsController extends Controller
         $engagement = $isConfigured ? $service->getEngagementStats() : [];
         $searchConsole = ($isConfigured && $service->isSearchConsoleEnabled()) ? $service->getSearchConsoleStats() : [];
 
-        return $this->renderTemplate('craft-analytics/_cp/index', [
+        return $this->renderTemplate('craft-ga/_cp/index', [
             'isConfigured' => $isConfigured,
             'canManage' => $canManage,
             'summary' => $summary,
@@ -73,9 +73,9 @@ class AnalyticsController extends Controller
 
         Plugin::$plugin->analytics->clearCache();
 
-        Craft::$app->getSession()->setNotice(Craft::t('craft-analytics', 'Analytics cache cleared.'));
+        Craft::$app->getSession()->setNotice(Craft::t('craft-ga', 'Analytics cache cleared.'));
 
-        return $this->redirect(UrlHelper::cpUrl('craft-analytics'));
+        return $this->redirect(UrlHelper::cpUrl('craft-ga'));
     }
 
     public function actionConnect(): Response
@@ -108,25 +108,25 @@ class AnalyticsController extends Controller
 
         $error = $request->getQueryParam('error');
         if ($error) {
-            $session->setError(Craft::t('craft-analytics', 'Google authorization denied.'));
-            return $this->redirect(UrlHelper::cpUrl('settings/plugins/craft-analytics'));
+            $session->setError(Craft::t('craft-ga', 'Google authorization denied.'));
+            return $this->redirect(UrlHelper::cpUrl('settings/plugins/craft-ga'));
         }
 
         $code = $request->getQueryParam('code');
         if (empty($code)) {
-            $session->setError(Craft::t('craft-analytics', 'No authorization code received.'));
-            return $this->redirect(UrlHelper::cpUrl('settings/plugins/craft-analytics'));
+            $session->setError(Craft::t('craft-ga', 'No authorization code received.'));
+            return $this->redirect(UrlHelper::cpUrl('settings/plugins/craft-ga'));
         }
 
         try {
             Plugin::$plugin->analytics->handleOAuthCallback($code);
-            $session->setNotice(Craft::t('craft-analytics', 'Successfully connected to Google Analytics!'));
+            $session->setNotice(Craft::t('craft-ga', 'Successfully connected to Google Analytics!'));
         } catch (\Throwable $e) {
             Craft::error('Analytics OAuth error: ' . $e->getMessage(), __METHOD__);
-            $session->setError(Craft::t('craft-analytics', 'Connection failed. Check the logs for details.'));
+            $session->setError(Craft::t('craft-ga', 'Connection failed. Check the logs for details.'));
         }
 
-        return $this->redirect(UrlHelper::cpUrl('settings/plugins/craft-analytics'));
+        return $this->redirect(UrlHelper::cpUrl('settings/plugins/craft-ga'));
     }
 
     public function actionDisconnect(): Response
@@ -136,8 +136,8 @@ class AnalyticsController extends Controller
 
         Plugin::$plugin->analytics->disconnect();
 
-        Craft::$app->getSession()->setNotice(Craft::t('craft-analytics', 'Disconnected from Google Analytics.'));
+        Craft::$app->getSession()->setNotice(Craft::t('craft-ga', 'Disconnected from Google Analytics.'));
 
-        return $this->redirect(UrlHelper::cpUrl('settings/plugins/craft-analytics'));
+        return $this->redirect(UrlHelper::cpUrl('settings/plugins/craft-ga'));
     }
 }

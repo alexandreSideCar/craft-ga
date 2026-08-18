@@ -1,7 +1,7 @@
 {% if not isConfigured %}
   <div class="zilch">
-    <p>{{ 'Analytics not configured.'|t('craft-analytics') }}</p>
-    <p><a href="{{ cpUrl('settings/plugins/craft-analytics') }}">{{ 'Settings'|t('craft-analytics') }}</a></p>
+    <p>{{ 'Analytics not configured.'|t('craft-ga') }}</p>
+    <p><a href="{{ cpUrl('settings/plugins/craft-ga') }}">{{ 'Settings'|t('craft-ga') }}</a></p>
   </div>
 {% elseif summary.error is defined %}
   <p class="error" style="padding: 12px;">{{ summary.error }}</p>
@@ -10,16 +10,16 @@
     <thead>
       <tr>
         <th></th>
-        <th style="text-align: right;">{{ 'Users'|t('craft-analytics') }}</th>
-        <th style="text-align: right;">{{ 'Sessions'|t('craft-analytics') }}</th>
-        <th style="text-align: right;">{{ 'Views'|t('craft-analytics') }}</th>
+        <th style="text-align: right;">{{ 'Users'|t('craft-ga') }}</th>
+        <th style="text-align: right;">{{ 'Sessions'|t('craft-ga') }}</th>
+        <th style="text-align: right;">{{ 'Views'|t('craft-ga') }}</th>
       </tr>
     </thead>
     <tbody>
       {% set periods = {
-        today: 'Today'|t('craft-analytics'),
-        week: '7 days'|t('craft-analytics'),
-        month: '30 days'|t('craft-analytics'),
+        today: 'Today'|t('craft-ga'),
+        week: '7 days'|t('craft-ga'),
+        month: '30 days'|t('craft-ga'),
       } %}
       {% for key, label in periods %}
         {% set data = summary[key] ?? {} %}

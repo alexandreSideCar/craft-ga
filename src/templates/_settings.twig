@@ -1,8 +1,8 @@
 {% import '_includes/forms.twig' as forms %}
 
 {{ forms.autosuggestField({
-    label: 'GA4 Property ID'|t('craft-analytics'),
-    instructions: 'The numeric property ID from GA4 Admin > Property Settings (e.g. `properties/123456789`). Supports environment variables.'|t('craft-analytics'),
+    label: 'GA4 Property ID'|t('craft-ga'),
+    instructions: 'The numeric property ID from GA4 Admin > Property Settings (e.g. `properties/123456789`). Supports environment variables.'|t('craft-ga'),
     id: 'propertyId',
     name: 'propertyId',
     value: settings.propertyId,
@@ -12,11 +12,11 @@
 
 <hr>
 
-<h2>{{ 'Search Console'|t('craft-analytics') }}</h2>
+<h2>{{ 'Search Console'|t('craft-ga') }}</h2>
 
 {{ forms.lightswitchField({
-    label: 'Enable Search Console'|t('craft-analytics'),
-    instructions: 'Display Google Search Console data (queries, impressions, clicks, positions). Requires the Search Console API to be enabled in Google Cloud Console. You must reconnect your Google account after enabling this.'|t('craft-analytics'),
+    label: 'Enable Search Console'|t('craft-ga'),
+    instructions: 'Display Google Search Console data (queries, impressions, clicks, positions). Requires the Search Console API to be enabled in Google Cloud Console. You must reconnect your Google account after enabling this.'|t('craft-ga'),
     id: 'enableSearchConsole',
     name: 'enableSearchConsole',
     on: settings.enableSearchConsole,
@@ -24,8 +24,8 @@
 
 <div id="searchConsoleSettings" {% if not settings.enableSearchConsole %}class="hidden"{% endif %}>
   {{ forms.autosuggestField({
-      label: 'Search Console Site URL'|t('craft-analytics'),
-      instructions: 'The site URL as registered in Google Search Console (e.g. `https://example.com/`). Leave blank to use the primary site URL.'|t('craft-analytics'),
+      label: 'Search Console Site URL'|t('craft-ga'),
+      instructions: 'The site URL as registered in Google Search Console (e.g. `https://example.com/`). Leave blank to use the primary site URL.'|t('craft-ga'),
       id: 'searchConsoleSiteUrl',
       name: 'searchConsoleSiteUrl',
       value: settings.searchConsoleSiteUrl,
@@ -62,11 +62,11 @@
 
 <hr>
 
-<h2>{{ 'Google OAuth2'|t('craft-analytics') }}</h2>
+<h2>{{ 'Google OAuth2'|t('craft-ga') }}</h2>
 
 {{ forms.autosuggestField({
-    label: 'OAuth Client ID'|t('craft-analytics'),
-    instructions: 'From Google Cloud Console > APIs & Services > Credentials > OAuth 2.0 Client IDs.'|t('craft-analytics'),
+    label: 'OAuth Client ID'|t('craft-ga'),
+    instructions: 'From Google Cloud Console > APIs & Services > Credentials > OAuth 2.0 Client IDs.'|t('craft-ga'),
     id: 'oauthClientId',
     name: 'oauthClientId',
     value: settings.oauthClientId,
@@ -75,8 +75,8 @@
 }) }}
 
 {{ forms.autosuggestField({
-    label: 'OAuth Client Secret'|t('craft-analytics'),
-    instructions: 'The client secret for the OAuth 2.0 client.'|t('craft-analytics'),
+    label: 'OAuth Client Secret'|t('craft-ga'),
+    instructions: 'The client secret for the OAuth 2.0 client.'|t('craft-ga'),
     id: 'oauthClientSecret',
     name: 'oauthClientSecret',
     value: settings.oauthClientSecret,
@@ -84,11 +84,11 @@
     required: true,
 }) }}
 
-{% set redirectUri = craft.app.plugins.getPlugin('craft-analytics').analytics.getRedirectUri() %}
+{% set redirectUri = craft.app.plugins.getPlugin('craft-ga').analytics.getRedirectUri() %}
 <div class="field">
     <div class="heading">
-        <label>{{ 'Authorized Redirect URI'|t('craft-analytics') }}</label>
-        <div class="instructions"><p>{{ 'Add this URI to your Google OAuth client\'s **Authorized redirect URIs**.'|t('craft-analytics') }}</p></div>
+        <label>{{ 'Authorized Redirect URI'|t('craft-ga') }}</label>
+        <div class="instructions"><p>{{ 'Add this URI to your Google OAuth client\'s **Authorized redirect URIs**.'|t('craft-ga') }}</p></div>
     </div>
     <div class="input">
         <code style="padding: 8px 12px; background: #f1f5f9; border-radius: 4px; display: inline-block; user-select: all;">{{ redirectUri }}</code>
@@ -98,16 +98,16 @@
 
 <hr>
 
-<h2>{{ 'Connection Status'|t('craft-analytics') }}</h2>
+<h2>{{ 'Connection Status'|t('craft-ga') }}</h2>
 
 {% if settings.isConnected() %}
     <div class="field">
         <div style="display: flex; align-items: center; gap: 12px;">
             <span style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: #dcfce7; color: #166534; border-radius: 6px; font-weight: 500;">
                 <span style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block;"></span>
-                {{ 'Connected to Google Analytics'|t('craft-analytics') }}
+                {{ 'Connected to Google Analytics'|t('craft-ga') }}
             </span>
-            <button type="button" class="btn small" data-analytics-action="craft-analytics/analytics/disconnect" data-analytics-confirm="{{ 'Disconnect from Google Analytics?'|t('craft-analytics')|e('html_attr') }}">{{ 'Disconnect'|t('craft-analytics') }}</button>
+            <button type="button" class="btn small" data-analytics-action="craft-ga/analytics/disconnect" data-analytics-confirm="{{ 'Disconnect from Google Analytics?'|t('craft-ga')|e('html_attr') }}">{{ 'Disconnect'|t('craft-ga') }}</button>
         </div>
     </div>
 {% else %}
@@ -115,12 +115,12 @@
         <div style="display: flex; align-items: center; gap: 12px;">
             <span style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: #fef3c7; color: #92400e; border-radius: 6px; font-weight: 500;">
                 <span style="width: 8px; height: 8px; background: #f59e0b; border-radius: 50%; display: inline-block;"></span>
-                {{ 'Not connected'|t('craft-analytics') }}
+                {{ 'Not connected'|t('craft-ga') }}
             </span>
             {% if settings.oauthClientId and settings.oauthClientSecret %}
-                <button type="button" class="btn submit" data-analytics-action="craft-analytics/analytics/connect">{{ 'Connect to Google'|t('craft-analytics') }}</button>
+                <button type="button" class="btn submit" data-analytics-action="craft-ga/analytics/connect">{{ 'Connect to Google'|t('craft-ga') }}</button>
             {% else %}
-                <span class="light">{{ 'Save your Client ID and Secret first, then connect.'|t('craft-analytics') }}</span>
+                <span class="light">{{ 'Save your Client ID and Secret first, then connect.'|t('craft-ga') }}</span>
             {% endif %}
         </div>
     </div>
@@ -129,8 +129,8 @@
 <hr>
 
 {{ forms.textField({
-    label: 'Cache Duration (seconds)'|t('craft-analytics'),
-    instructions: 'How long to cache API responses. Default: 300 (5 minutes).'|t('craft-analytics'),
+    label: 'Cache Duration (seconds)'|t('craft-ga'),
+    instructions: 'How long to cache API responses. Default: 300 (5 minutes).'|t('craft-ga'),
     id: 'cacheDuration',
     name: 'cacheDuration',
     value: settings.cacheDuration,

@@ -1,6 +1,6 @@
 <?php
 
-namespace sidecar\craftanalytics\models;
+namespace sidecar\craftga\models;
 
 use craft\base\Model;
 
