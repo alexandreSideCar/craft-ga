@@ -64,7 +64,14 @@ Google and re-enter your GA4 property ID. See the
 3. Enter your **OAuth Client ID** and **OAuth Client Secret**
 4. Click **Save**
 5. Click **Connect to Google** and authorize access
-6. You're connected — visit the **Analytics** section in the CP sidebar
+6. Back on the settings page, copy the refresh token line shown once into your `.env` file
+   (`GA4_OAUTH_REFRESH_TOKEN="..."`) and reload the page
+7. You're connected — visit the **Analytics** section in the CP sidebar
+
+The plugin never stores the refresh token itself: the setting only holds a
+`$GA4_OAUTH_REFRESH_TOKEN` reference, so the secret stays out of
+`config/project/` and version control. Access tokens are short-lived and are
+derived from the refresh token on the fly, so nothing token-related is persisted.
 
 ### Environment Variables
 
@@ -74,9 +81,15 @@ All settings support environment variables:
 GA4_PROPERTY_ID=123456789
 GA4_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GA4_OAUTH_CLIENT_SECRET=your-client-secret
+GA4_OAUTH_REFRESH_TOKEN=issued-by-connect-to-google
 ```
 
-Then in plugin settings, use `$GA4_PROPERTY_ID`, `$GA4_OAUTH_CLIENT_ID`, `$GA4_OAUTH_CLIENT_SECRET`.
+Then in plugin settings, use `$GA4_PROPERTY_ID`, `$GA4_OAUTH_CLIENT_ID`,
+`$GA4_OAUTH_CLIENT_SECRET` and `$GA4_OAUTH_REFRESH_TOKEN`.
+
+Each environment needs its own `GA4_OAUTH_REFRESH_TOKEN`; a token issued while
+connecting from one environment can be reused in another as long as the OAuth
+client is the same.
 
 ## Permissions
 

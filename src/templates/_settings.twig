@@ -95,6 +95,37 @@
     </div>
 </div>
 
+{% set envName = settings.getRefreshTokenEnvName() %}
+
+{% if pendingRefreshToken ?? null %}
+    {# Shown once, right after the OAuth callback. The plugin does not keep a copy. #}
+    <div class="pane" style="border-left: 4px solid #f59e0b; margin-bottom: 24px;">
+        <h3 style="margin-top: 0;">{{ 'Finish connecting: add the refresh token to your .env file'|t('craft-ga') }}</h3>
+        <p>{{ 'Google issued a refresh token. It is shown only once and is not stored by the plugin. Add this line to the `.env` file of every environment that should be connected, then reload this page.'|t('craft-ga')|md }}</p>
+        <pre style="padding: 12px; background: #f1f5f9; border-radius: 4px; overflow-x: auto; user-select: all;">{{ envName }}="{{ pendingRefreshToken }}"</pre>
+        <p class="light">{{ 'If you lose this token, disconnect and connect again to get a new one.'|t('craft-ga') }}</p>
+    </div>
+{% endif %}
+
+{{ forms.autosuggestField({
+    label: 'OAuth Refresh Token'|t('craft-ga'),
+    instructions: 'Reference to the environment variable holding the refresh token issued by **Connect to Google**, e.g. `$GA4_OAUTH_REFRESH_TOKEN`. Keep the token itself in `.env` so it stays out of project config.'|t('craft-ga'),
+    id: 'oauthRefreshToken',
+    name: 'oauthRefreshToken',
+    value: settings.oauthRefreshToken,
+    suggestEnvVars: true,
+    placeholder: '$' ~ envName,
+}) }}
+
+{% if settings.oauthRefreshToken and not settings.isRefreshTokenEnvReference() %}
+    {# Literal token left over from an earlier version: it lives in project config and must move to .env. #}
+    <div class="pane" style="border-left: 4px solid #ef4444; margin-bottom: 24px;">
+        <h3 style="margin-top: 0;">{{ 'This refresh token is stored in project config'|t('craft-ga') }}</h3>
+        <p>{{ 'Move it to your `.env` file and replace the field above with the variable reference, so the secret is no longer committed with `config/project/`.'|t('craft-ga')|md }}</p>
+        <pre style="padding: 12px; background: #f1f5f9; border-radius: 4px; overflow-x: auto; user-select: all;">{{ envName }}="{{ settings.oauthRefreshToken }}"</pre>
+        <p class="light">{{ 'Then set the field above to:'|t('craft-ga') }} <code>${{ envName }}</code></p>
+    </div>
+{% endif %}
 
 <hr>
 
@@ -108,6 +139,9 @@
                 {{ 'Connected to Google Analytics'|t('craft-ga') }}
             </span>
             <button type="button" class="btn small" data-analytics-action="craft-ga/analytics/disconnect" data-analytics-confirm="{{ 'Disconnect from Google Analytics?'|t('craft-ga')|e('html_attr') }}">{{ 'Disconnect'|t('craft-ga') }}</button>
+            {% if settings.isRefreshTokenEnvReference() %}
+                <span class="light">{{ 'Disconnecting clears the cache; remove `{env}` from .env to revoke the connection in this environment.'|t('craft-ga', { env: envName })|md(inlineOnly=true) }}</span>
+            {% endif %}
         </div>
     </div>
 {% else %}
@@ -117,6 +151,9 @@
                 <span style="width: 8px; height: 8px; background: #f59e0b; border-radius: 50%; display: inline-block;"></span>
                 {{ 'Not connected'|t('craft-ga') }}
             </span>
+            {% if settings.oauthRefreshToken and settings.isRefreshTokenEnvReference() %}
+                <span class="light">{{ 'The environment variable `{env}` is not set in this environment.'|t('craft-ga', { env: envName })|md(inlineOnly=true) }}</span>
+            {% endif %}
             {% if settings.oauthClientId and settings.oauthClientSecret %}
                 <button type="button" class="btn submit" data-analytics-action="craft-ga/analytics/connect">{{ 'Connect to Google'|t('craft-ga') }}</button>
             {% else %}

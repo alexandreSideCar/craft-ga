@@ -121,8 +121,10 @@ class AnalyticsController extends Controller
         }
 
         try {
-            Plugin::$plugin->analytics->handleOAuthCallback($code);
-            $session->setNotice(Craft::t('craft-ga', 'Successfully connected to Google Analytics!'));
+            $refreshToken = Plugin::$plugin->analytics->handleOAuthCallback($code);
+            // Shown once on the settings screen so it can be copied to .env; never stored by the plugin.
+            $session->set(Plugin::PENDING_REFRESH_TOKEN_SESSION_KEY, $refreshToken);
+            $session->setNotice(Craft::t('craft-ga', 'Google authorized. Add the refresh token to your .env file to finish connecting.'));
         } catch (\Throwable $e) {
             Craft::error('Analytics OAuth error: ' . $e->getMessage(), __METHOD__);
             $session->setError(Craft::t('craft-ga', 'Connection failed. Check the logs for details.'));

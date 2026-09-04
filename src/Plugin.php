@@ -26,7 +26,7 @@ class Plugin extends BasePlugin
 
     public bool $hasCpSection = true;
     public bool $hasCpSettings = true;
-    public string $schemaVersion = '1.1.0';
+    public string $schemaVersion = '1.2.0';
 
     public static function config(): array
     {
@@ -39,6 +39,12 @@ class Plugin extends BasePlugin
 
     public const PERMISSION_VIEW = 'craft-ga:view';
     public const PERMISSION_MANAGE = 'craft-ga:manage';
+
+    /**
+     * Session key holding a freshly issued refresh token between the OAuth
+     * callback and the settings screen, where it is displayed once.
+     */
+    public const PENDING_REFRESH_TOKEN_SESSION_KEY = 'craftGa.pendingRefreshToken';
 
     public function init(): void
     {
@@ -69,8 +75,13 @@ class Plugin extends BasePlugin
 
     protected function settingsHtml(): ?string
     {
+        $session = Craft::$app->getSession();
+        $pendingRefreshToken = $session->get(self::PENDING_REFRESH_TOKEN_SESSION_KEY);
+        $session->remove(self::PENDING_REFRESH_TOKEN_SESSION_KEY);
+
         return Craft::$app->getView()->renderTemplate('craft-ga/_settings', [
             'settings' => $this->getSettings(),
+            'pendingRefreshToken' => $pendingRefreshToken,
         ]);
     }
 

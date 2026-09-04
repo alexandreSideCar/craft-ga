@@ -23,6 +23,7 @@ use Google\Client as GoogleClient;
 use Google\Service\SearchConsole;
 use Google\Service\SearchConsole\SearchAnalyticsQueryRequest;
 use GuzzleHttp\Exception\RequestException;
+use sidecar\craftga\models\Settings;
 use sidecar\craftga\Plugin;
 use yii\caching\TagDependency;
 
@@ -94,7 +95,16 @@ class AnalyticsService extends Component
         return $url;
     }
 
-    public function handleOAuthCallback(string $code): void
+    /**
+     * Exchanges the OAuth authorization code for tokens and returns the refresh token.
+     *
+     * Nothing is persisted here on purpose: a refresh token written to plugin
+     * settings ends up in project config (and therefore in version control). The
+     * caller shows it once so it can be added to `.env`, and the setting only ever
+     * holds a `$ENV_VAR` reference to it. If the setting is still empty, the default
+     * reference is saved so the settings screen is ready for the variable.
+     */
+    public function handleOAuthCallback(string $code): string
     {
         $settings = Plugin::$plugin->getSettings();
         $clientId = App::parseEnv($settings->oauthClientId);
@@ -117,20 +127,29 @@ class AnalyticsService extends Component
             throw new \RuntimeException('No refresh token received. Please revoke access and try again.');
         }
 
-        $settings->oauthAccessToken = $data['access_token'] ?? '';
-        $settings->oauthRefreshToken = $data['refresh_token'];
-        $settings->oauthExpiresAt = time() + ($data['expires_in'] ?? 3600);
+        if ($settings->oauthRefreshToken === '') {
+            Craft::$app->getPlugins()->savePluginSettings(Plugin::$plugin, [
+                'oauthRefreshToken' => '$' . Settings::DEFAULT_REFRESH_TOKEN_ENV,
+            ]);
+        }
 
-        Craft::$app->getPlugins()->savePluginSettings(Plugin::$plugin, $settings->toArray());
+        $this->clearCache();
+
+        return $data['refresh_token'];
     }
 
+    /**
+     * Forgets the connection. A literal token is cleared from the settings; an
+     * environment reference is left as-is since the token itself lives in `.env`.
+     */
     public function disconnect(): void
     {
-        Craft::$app->getPlugins()->savePluginSettings(Plugin::$plugin, [
-            'oauthAccessToken' => '',
-            'oauthRefreshToken' => '',
-            'oauthExpiresAt' => 0,
-        ]);
+        $settings = Plugin::$plugin->getSettings();
+
+        if ($settings->oauthRefreshToken !== '' && !$settings->isRefreshTokenEnvReference()) {
+            Craft::$app->getPlugins()->savePluginSettings(Plugin::$plugin, ['oauthRefreshToken' => '']);
+        }
+
         $this->clearCache();
     }
 
@@ -819,7 +838,7 @@ class AnalyticsService extends Component
         $settings = Plugin::$plugin->getSettings();
         $clientId = App::parseEnv($settings->oauthClientId);
         $clientSecret = App::parseEnv($settings->oauthClientSecret);
-        $refreshToken = $settings->oauthRefreshToken;
+        $refreshToken = $settings->getRefreshToken();
 
         if (empty($refreshToken)) {
             throw new \RuntimeException('Not connected to Google. Please authorize in plugin settings.');
@@ -908,7 +927,7 @@ class AnalyticsService extends Component
             $settings = Plugin::$plugin->getSettings();
             $clientId = App::parseEnv($settings->oauthClientId);
             $clientSecret = App::parseEnv($settings->oauthClientSecret);
-            $refreshToken = $settings->oauthRefreshToken;
+            $refreshToken = $settings->getRefreshToken();
 
             if (empty($refreshToken)) {
                 throw new \RuntimeException('Not connected to Google Analytics. Please authorize in plugin settings.');

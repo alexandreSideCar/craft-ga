@@ -5,6 +5,24 @@ All notable changes to Craft GA are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2.2.0 - 2026-09-04
+
+### Changed
+
+- The Google refresh token is no longer written to plugin settings (and thus to
+  project config). **Connect to Google** now shows the token once so it can be
+  added to `.env` as `GA4_OAUTH_REFRESH_TOKEN`; the setting only holds the
+  `$GA4_OAUTH_REFRESH_TOKEN` reference, resolved at use.
+- The stored access token and its expiry were removed: the Google client derives
+  access tokens from the refresh token, so they were never read. A migration
+  drops both keys from project config.
+
+### Upgrading
+
+Existing installs keep working with the literal token already in project config.
+The settings page flags it and shows the `.env` line to move it to; once the
+field is set to `$GA4_OAUTH_REFRESH_TOKEN`, the secret leaves `config/project/`.
+
 ## 2.1.0 - 2026-08-18
 
 ### Added
