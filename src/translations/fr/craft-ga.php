@@ -34,7 +34,7 @@ return [
     'The environment variable `{env}` is not set in this environment.' => 'La variable d\'environnement `{env}` n\'est pas définie dans cet environnement.',
     'Google authorized. Add the refresh token to your .env file to finish connecting.' => 'Google a autorisé l\'accès. Ajoutez le jeton de rafraîchissement à votre fichier .env pour terminer la connexion.',
     'Cache Duration (seconds)' => 'Durée du cache (secondes)',
-    'How long to cache API responses, in seconds (minimum 1). Default: 300 (5 minutes).' => 'Durée de mise en cache des réponses API, en secondes (minimum 1). Par défaut : 300 (5 minutes).',
+    'How long a report stays fresh, in seconds (minimum 1). Stale reports are still shown instantly and refreshed in the background. Default: 300 (5 minutes).' => 'Durée pendant laquelle un rapport reste à jour, en secondes (minimum 1). Un rapport périmé est tout de même affiché immédiatement et rafraîchi en arrière-plan. Par défaut : 300 (5 minutes).',
 
     // CP Page
     'Google Analytics is not configured yet.' => 'Google Analytics n\'est pas encore configuré.',
@@ -96,6 +96,7 @@ return [
     'Search Console data may be delayed by 2-3 days.' => 'Les données Search Console peuvent avoir un délai de 2 à 3 jours.',
 
     // Controller messages
+    'Refreshing Google Analytics reports' => 'Rafraîchissement des rapports Google Analytics',
     'Analytics cache cleared.' => 'Cache analytique vidé.',
     'Successfully connected to Google Analytics!' => 'Connexion à Google Analytics réussie !',
     'Google authorization denied: {error}' => 'Autorisation Google refusée : {error}',

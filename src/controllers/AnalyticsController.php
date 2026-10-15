@@ -7,6 +7,7 @@ use craft\helpers\StringHelper;
 use craft\helpers\UrlHelper;
 use craft\web\Controller;
 use sidecar\craftga\Plugin;
+use sidecar\craftga\services\AnalyticsService;
 use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
 use yii\web\Response;
@@ -45,26 +46,20 @@ class AnalyticsController extends Controller
         $canManage = Craft::$app->getUser()->getIdentity()->admin
             || Craft::$app->getUser()->checkPermission(Plugin::PERMISSION_MANAGE);
 
-        $summary = $isConfigured ? $service->getSummaryStats() : [];
-        $topPages = $isConfigured ? $service->getTopPages() : [];
-        $trafficSources = $isConfigured ? $service->getTrafficSources() : [];
-        $topReferrals = $isConfigured ? $service->getTopReferrals() : [];
-        $dailyStats = $isConfigured ? $service->getDailyStats() : [];
-        $keyEvents = $isConfigured ? $service->getKeyEvents() : [];
-        $engagement = $isConfigured ? $service->getEngagementStats() : [];
-        $searchConsole = ($isConfigured && $service->isSearchConsoleEnabled()) ? $service->getSearchConsoleStats() : [];
+        // One call so every uncached GA4 report travels in the same batched requests.
+        $data = $isConfigured ? $service->getDashboardData() : [];
 
         return $this->renderTemplate('craft-ga/_cp/index', [
             'isConfigured' => $isConfigured,
             'canManage' => $canManage,
-            'summary' => $summary,
-            'topPages' => $topPages,
-            'trafficSources' => $trafficSources,
-            'topReferrals' => $topReferrals,
-            'dailyStats' => $dailyStats,
-            'keyEvents' => $keyEvents,
-            'engagement' => $engagement,
-            'searchConsole' => $searchConsole,
+            'summary' => $data[AnalyticsService::REPORT_SUMMARY] ?? [],
+            'topPages' => $data[AnalyticsService::REPORT_TOP_PAGES] ?? [],
+            'trafficSources' => $data[AnalyticsService::REPORT_TRAFFIC_SOURCES] ?? [],
+            'topReferrals' => $data[AnalyticsService::REPORT_TOP_REFERRALS] ?? [],
+            'dailyStats' => $data[AnalyticsService::REPORT_DAILY] ?? [],
+            'keyEvents' => $data[AnalyticsService::REPORT_KEY_EVENTS] ?? [],
+            'engagement' => $data[AnalyticsService::REPORT_ENGAGEMENT] ?? [],
+            'searchConsole' => $data[AnalyticsService::REPORT_SEARCH_CONSOLE] ?? [],
         ]);
     }
 

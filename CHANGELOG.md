@@ -5,6 +5,29 @@ All notable changes to Craft GA are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- Dashboard loads no longer wait on Google once a report has been cached. A
+  report stays fresh for the configured cache duration; after that it is still
+  served instantly from cache while a queue job refreshes it in the background.
+  Only a report that was never cached (or whose cached copy is more than 24
+  hours old) is fetched synchronously. If a background refresh fails, the last
+  good copy keeps being served instead of an error.
+- All GA4 reports requested together are packed into `batchRunReports` calls
+  (5 reports per call), so a full cold dashboard load makes 2 GA4 API calls
+  instead of 10. The CP dashboard now requests every panel in one pass.
+- The Google access token is cached for its lifetime (about an hour) and shared
+  between the GA4 and Search Console clients, instead of being refreshed twice
+  on every cold load.
+
+### Added
+
+- `craft craft-ga/cache/warm` console command, which refreshes every dashboard
+  report. Point a cron entry at it on sites where the queue does not run
+  continuously. `craft craft-ga/cache/clear` drops the cached reports.
+
 ## 2.2.0 - 2026-09-04
 
 ### Changed

@@ -37,8 +37,14 @@ Use `gh` for all GitHub operations — it's already authenticated.
 ```
 src/
 ├── Plugin.php                   # Entry point — registers service, widget, permissions, CP routes
+├── auth/
+│   └── AccessTokenFetcher.php   # Feeds the shared cached access token to the GA4 client
+├── console/controllers/
+│   └── CacheController.php      # `craft craft-ga/cache/warm|clear`
 ├── controllers/
 │   └── AnalyticsController.php   # CP web controller (OAuth flow, data endpoints)
+├── jobs/
+│   └── RefreshReports.php       # Background refresh of stale cached reports
 ├── models/
 │   └── Settings.php             # Plugin settings (OAuth credentials, property IDs)
 ├── services/
