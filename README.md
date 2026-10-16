@@ -17,7 +17,7 @@ Google Analytics 4 dashboard plugin for Craft CMS 5.
 - **Dashboard widget** — Compact summary widget for the Craft dashboard
 - **Permissions** — Granular user permissions (View Analytics / Manage Analytics)
 - **Translations** — English and French included
-- **Caching** — All API responses cached (configurable duration)
+- **Caching** — Reports served from cache and refreshed in the background (configurable duration)
 - **OAuth2** — Secure connection via Google OAuth2 (no service account JSON needed)
 
 ## Requirements
@@ -104,7 +104,43 @@ Admin users always have full access. OAuth connection and plugin settings are re
 
 ## Cache
 
-API responses are cached for 5 minutes by default. You can change this in the plugin settings (Cache Duration field). Click **Clear Cache & Refresh** on the Analytics page to force a refresh.
+Reports are cached and served instantly. A report stays fresh for 5 minutes by
+default (change it with the Cache Duration setting). After that it is still
+shown immediately from the cache while a queue job refreshes it in the
+background, so the dashboard never waits on Google once it has loaded once.
+Only a report that was never cached, or whose cached copy is more than 24 hours
+old, is fetched while the page loads. If a background refresh fails, the last
+good copy keeps being shown.
+
+Click **Clear Cache & Refresh** on the Analytics page to drop every cached
+report and force a fresh fetch.
+
+### Queue and cron
+
+No plugin-specific cron job is required, but the background refresh runs as a
+Craft queue job, so the queue has to be processed:
+
+- **Default setup** (`runQueueAutomatically` left at `true`): Craft runs queued
+  jobs on control panel requests. Nothing to configure.
+- **Queue runner** (`runQueueAutomatically` set to `false`, as is common in
+  production): make sure your queue worker is running, for example
+  `php craft queue/listen` under a process manager, or `php craft queue/run`
+  from cron. Without it, stale reports are never refreshed.
+
+A cron job is still worthwhile on low-traffic sites. Reports are refreshed only
+when someone opens the dashboard, so the first visit after a quiet period shows
+older data until the queue job finishes, and after 24 hours without a visit the
+page has to fetch synchronously again. Keeping the cache warm avoids both:
+
+```bash
+# Refresh every report, every 10 minutes
+*/10 * * * * cd /path/to/craft-project && php craft craft-ga/cache/warm
+```
+
+The command exits with a non-zero status and lists the failing reports if
+Google cannot be reached, so cron monitoring picks up outages. Run it from your
+Craft project root, not from this plugin's directory. `php craft
+craft-ga/cache/clear` empties the cache from the command line.
 
 ## Translations
 
